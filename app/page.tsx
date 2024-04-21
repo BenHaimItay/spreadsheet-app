@@ -3,7 +3,29 @@ import React, { useState } from "react";
 //👇🏻 import the components
 import { SpreadsheetData } from "./types";
 import Sidebar from "./components/Sidebar";
+import { useCopilotAction } from "@copilotkit/react-core";
 import SingleSpreadsheet from "./components/SingleSpreadsheet";
+import "@copilotkit/react-ui/styles.css";
+import { CopilotKit } from "@copilotkit/react-core";
+import { CopilotSidebar } from "@copilotkit/react-ui";
+import { INSTRUCTIONS } from "./instructions";
+
+const HomePage = () => {
+  return (
+    <CopilotKit url="/api/copilotkit">
+      <CopilotSidebar
+        instructions={INSTRUCTIONS}
+        labels={{
+          initial: "Welcome to the spreadsheet app! How can I help you?",
+        }}
+        defaultOpen={true}
+        clickOutsideToClose={false}
+      >
+        <Main />
+      </CopilotSidebar>
+    </CopilotKit>
+  );
+};
 
 const Main = () => {
   //👇🏻 holds the title and data within a spreadsheet
@@ -20,6 +42,61 @@ const Main = () => {
 
   //👇🏻 represents the index of a spreadsheet
   const [selectedSpreadsheetIndex, setSelectedSpreadsheetIndex] = useState(0);
+
+  useCopilotAction({
+    name: "createSpreadsheet",
+    description: "Create a new  spreadsheet",
+    parameters: [
+      {
+        name: "rows",
+        type: "object[]",
+        description: "The rows of the spreadsheet",
+        attributes: [
+          {
+            name: "cells",
+            type: "object[]",
+            description: "The cells of the row",
+            attributes: [
+              {
+                name: "value",
+                type: "string",
+                description: "The value of the cell",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: "title",
+        type: "string",
+        description: "The title of the spreadsheet",
+      },
+    ],
+    render: (props) => {
+      const { rows, title } = props.args;
+      const newRows = canonicalSpreadsheetData(rows);
+
+      return (
+        <PreviewSpreadsheetChanges
+          preCommitTitle="Create spreadsheet"
+          postCommitTitle="Spreadsheet created"
+          newRows={newRows}
+          commit={(rows) => {
+            const newSpreadsheet: SpreadsheetData = {
+              title: title || "Untitled Spreadsheet",
+              rows: rows,
+            };
+            setSpreadsheets((prev) => [...prev, newSpreadsheet]);
+            setSelectedSpreadsheetIndex(spreadsheets.length);
+          }}
+        />
+      );
+    },
+    handler: ({ rows, title }) => {
+      // Do nothing.
+      // The preview component will optionally handle committing the changes.
+    },
+  });
 
   return (
     <div className="flex">
@@ -43,4 +120,4 @@ const Main = () => {
   );
 };
 
-export default Main;
+export default HomePage;

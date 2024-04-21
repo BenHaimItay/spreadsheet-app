@@ -1,6 +1,12 @@
 import React from "react";
 import Spreadsheet from "react-spreadsheet";
 import { SpreadsheetData, SpreadsheetRow } from "../types";
+import {
+  useCopilotAction,
+  useMakeCopilotReadable,
+} from "@copilotkit/react-core";
+import { canonicalSpreadsheetData } from "../utils/canonicalSpreadsheetData";
+import { PreviewSpreadsheetChanges } from "./PreviewSpreadsheetChanges";
 
 interface MainAreaProps {
   spreadsheet: SpreadsheetData;
@@ -8,6 +14,111 @@ interface MainAreaProps {
 }
 
 const SingleSpreadsheet = ({ spreadsheet, setSpreadsheet }: MainAreaProps) => {
+  //👇🏻 hook for providing the application state
+  useMakeCopilotReadable(
+    "This is the current spreadsheet: " + JSON.stringify(spreadsheet),
+  );
+
+  useCopilotAction({
+    name: "suggestSpreadsheetOverride",
+    description: "Suggest an override of the current spreadsheet",
+    parameters: [
+      {
+        name: "rows",
+        type: "object[]",
+        description: "The rows of the spreadsheet",
+        attributes: [
+          {
+            name: "cells",
+            type: "object[]",
+            description: "The cells of the row",
+            attributes: [
+              {
+                name: "value",
+                type: "string",
+                description: "The value of the cell",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: "title",
+        type: "string",
+        description: "The title of the spreadsheet",
+        required: false,
+      },
+    ],
+    render: (props) => {
+      const { rows } = props.args;
+      const newRows = canonicalSpreadsheetData(rows);
+
+      return (
+        <PreviewSpreadsheetChanges
+          preCommitTitle="Replace contents"
+          postCommitTitle="Changes committed"
+          newRows={newRows}
+          commit={(rows) => {
+            const updatedSpreadsheet: SpreadsheetData = {
+              title: spreadsheet.title,
+              rows: rows,
+            };
+            setSpreadsheet(updatedSpreadsheet);
+          }}
+        />
+      );
+    },
+    handler: ({ rows, title }) => {
+      // Do nothing.
+      // The preview component will optionally handle committing the changes.
+    },
+  });
+
+  useCopilotAction({
+    name: "appendToSpreadsheet",
+    description: "Append rows to the current spreadsheet",
+    parameters: [
+      {
+        name: "rows",
+        type: "object[]",
+        description: "The new rows of the spreadsheet",
+        attributes: [
+          {
+            name: "cells",
+            type: "object[]",
+            description: "The cells of the row",
+            attributes: [
+              {
+                name: "value",
+                type: "string",
+                description: "The value of the cell",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    render: (props) => {
+      const status = props.status;
+      const { rows } = props.args;
+      const newRows = canonicalSpreadsheetData(rows);
+      return (
+        <div>
+          <p>Status: {status}</p>
+          <Spreadsheet data={newRows} />
+        </div>
+      );
+    },
+    handler: ({ rows }) => {
+      const canonicalRows = canonicalSpreadsheetData(rows);
+      const updatedSpreadsheet: SpreadsheetData = {
+        title: spreadsheet.title,
+        rows: [...spreadsheet.rows, ...canonicalRows],
+      };
+      setSpreadsheet(updatedSpreadsheet);
+    },
+  });
+
   //👇🏻 adds a new row to the spreadsheet
   const addRow = () => {
     const numberOfColumns = spreadsheet.data[0].length;
